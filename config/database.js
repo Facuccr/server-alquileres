@@ -9,25 +9,15 @@ const dbConfig = {
   port: process.env.DB_PORT,
 };
 
-let connection = null;
-
 async function connectToDatabase() {
   try {
-    connection = await mysql.createConnection(dbConfig);
+    const connection = await mysql.createConnection(dbConfig);
     console.log("Conexión a la base de datos MySQL establecida exitosamente!");
+    return connection; // Devuelve la conexión
   } catch (error) {
     console.error("Error al conectar a la base de datos:", error.message);
-    process.exit(1); // Salir del proceso si no se puede conectar
+    throw error; // Propaga el error para que app.js pueda manejarlo
   }
 }
 
-function getConnection() {
-  if (!connection) {
-    throw new Error(
-      "La conexión a la base de datos no está establecida. Asegúrate de llamar a connectToDatabase primero."
-    );
-  }
-  return connection;
-}
-
-module.exports = { connectToDatabase, getConnection };
+module.exports = { connectToDatabase };

@@ -1,12 +1,13 @@
 // controllers/auth.controller.js
 const bcrypt = require("bcryptjs");
-const UserModel = require("../models/user.model.js");
+const UserModel = require("../models/user.model");
 
 const authController = {
   register: async (req, res) => {
+    const db = req.db; // Obtiene la conexión de la solicitud
     const { full_name, email, phone, password, user_type } = req.body;
 
-    // Validaciones de entrada (moved from server.js)
+    // Validaciones de entrada
     if (!full_name || !email || !password || !user_type) {
       return res
         .status(400)
@@ -24,8 +25,8 @@ const authController = {
     }
 
     try {
-      // Verifica si el email ya existe
-      const existingUser = await UserModel.findByEmail(email);
+      // Pasa 'db' al método del modelo
+      const existingUser = await UserModel.findByEmail(db, email);
       if (existingUser) {
         return res
           .status(409)
@@ -36,7 +37,9 @@ const authController = {
       const salt = await bcrypt.genSalt(10);
       const password_hash = await bcrypt.hash(password, salt);
 
+      // Pasa 'db' al método del modelo
       const userId = await UserModel.create(
+        db,
         full_name,
         email,
         phone,
@@ -59,9 +62,10 @@ const authController = {
   },
 
   login: async (req, res) => {
+    const db = req.db; // Obtiene la conexión de la solicitud
     const { email, password } = req.body;
 
-    // Validaciones de entrada (moved from server.js)
+    // Validaciones de entrada
     if (!email || !password) {
       return res
         .status(400)
@@ -69,8 +73,8 @@ const authController = {
     }
 
     try {
-      // Busca el usuario
-      const user = await UserModel.findByEmail(email);
+      // Pasa 'db' al método del modelo
+      const user = await UserModel.findByEmail(db, email);
       if (!user) {
         return res.status(401).json({ message: "Credenciales inválidas." });
       }
