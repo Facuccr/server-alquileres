@@ -1,72 +1,77 @@
 // app.js
-require("dotenv").config();
-
 const express = require("express");
+const dotenv = require("dotenv");
 const cors = require("cors");
-const path = require("path"); // Importar el módulo 'path' para rutas de archivos
+const path = require("path");
 
-const { connectToDatabase } = require("./config/database.js"); // Importa la función de conexión
-
-const authRoutes = require("./routes/auth.route.js");
-const propertyRoutes = require("./routes/property.route.js"); // ¡NUEVO! Importa las rutas de propiedad
+dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-let connection; // Declara la variable de conexión en un ámbito accesible
+const db = require("./config/database");
 
-// Función para inicializar la conexión a la base de datos
-async function initializeDatabaseConnection() {
-  try {
-    connection = await connectToDatabase(); // connectToDatabase ahora devuelve la conexión establecida
-  } catch (error) {
-    console.error(
-      "Error crítico al iniciar la conexión a la base de datos:",
-      error.message
-    );
-    process.exit(1); // Sale de la aplicación si no se puede conectar a la DB
-  }
-}
-initializeDatabaseConnection(); // Llama a la función para iniciar la conexión
-
+// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Middleware para adjuntar la conexión DB a cada solicitud
-// Esto asegura que `req.db` esté disponible en tus controladores
-app.use((req, res, next) => {
-  if (!connection) {
-    return res
-      .status(500)
-      .json({ message: "La conexión a la base de datos no está establecida." });
-  }
-  req.db = connection; // Adjunta la conexión activa a la solicitud
-  next();
-});
-
-// ¡NUEVO! Configura Express para servir archivos estáticos desde la carpeta 'uploads'
-// Esto es crucial para que las imágenes/videos subidos sean accesibles desde el frontend
+// Servir archivos estáticos (imágenes y videos subidos)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// --- Rutas de API ---
+// --- INICIAMOS EL SERVIDOR DESPUÉS DE CONECTAR LA DB ---
+async function startServer() {
+  try {
+    // 1. Intentamos conectar a la base de datos primero
+    await db.connectToDatabase();
+    // Si la conexión es exitosa, console.log ya lo maneja desde database.js
 
-// Ruta de prueba
-app.get("/", (req, res) => {
-  res.send("¡Servidor AlkiFor Backend funcionando!");
-});
+    // 2. Ahora que la DB está conectada, configuramos el middleware de DB
+    // Este middleware debe ir ANTES de tus rutas que usan req.db
+    app.use((req, res, next) => {
+      try {
+        req.db = db.getConnection(); // Obtiene la conexión activa
+        next();
+      } catch (error) {
+        console.error("Error en middleware de conexión a DB:", error.message);
+        return res
+          .status(500)
+          .json({
+            message: "La conexión a la base de datos no está disponible.",
+          });
+      }
+    });
 
-app.use("/api/auth", authRoutes); // Rutas de autenticación (ej: /api/auth/register, /api/auth/login)
-app.use("/api", propertyRoutes); // ¡NUEVO! Rutas de propiedades (ej: /api/properties)
+    // Importar rutas (AHORA SÍ, después de que req.db esté disponible)
+    const authRoutes = require("./routes/auth.route");
+    const propertyRoutes = require("./routes/properties.route");
 
-// Manejo de rutas no encontradas (404)
-app.use((req, res) => {
-  res.status(404).json({ message: "Ruta de API no encontrada." });
-});
+    // Usar rutas
+    app.use("/api/auth", authRoutes);
+    app.use("/api/properties", propertyRoutes);
 
-// Inicia el servidor
-app.listen(port, () => {
-  console.log(
-    `Servidor backend de AlkiFor escuchando en http://localhost:${port}`
-  );
-});
+    // Ruta de prueba (ruta raíz del servidor)
+    app.get("/", (req, res) => {
+      res.send("¡Servidor AlkiFor Backend funcionando!");
+    });
+
+    // Manejo de rutas no encontradas (404)
+    app.use((req, res) => {
+      res.status(404).json({ message: "Ruta de API no encontrada." });
+    });
+
+    // 3. Iniciar el servidor Express solo si todo lo anterior fue exitoso
+    app.listen(port, () => {
+      console.log(
+        `Servidor backend de AlkiFor escuchando en http://localhost:${port}`
+      );
+    });
+  } catch (err) {
+    // Si hay un error en la conexión a la base de datos, mostramos el error y salimos
+    console.error("Error crítico al iniciar el servidor debido a la DB:", err);
+    process.exit(1);
+  }
+}
+
+// Llama a la función para iniciar el servidor
+startServer();

@@ -1,5 +1,5 @@
 // db.js
-const { getConnection } = require("./config/database");
+const { getConnection } = require("./config/database.js");
 
 // Exportamos la función getConnection directamente
 module.exports = {

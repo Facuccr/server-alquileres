@@ -1,5 +1,5 @@
-// config/database.js
 const mysql = require("mysql2/promise");
+let connection = null; // Variable para mantener la conexión
 
 const dbConfig = {
   host: process.env.DB_HOST,
@@ -10,14 +10,32 @@ const dbConfig = {
 };
 
 async function connectToDatabase() {
+  // Simplificamos la verificación: si 'connection' ya existe, asumimos que estamos conectados.
+  // Cualquier problema con la conexión existente se manifestará al intentar usarla.
+  if (connection) {
+    // Cambiado de 'connection && connection.connection.state === "authenticated"'
+    console.log("Ya conectado a la base de datos.");
+    return connection;
+  }
   try {
-    const connection = await mysql.createConnection(dbConfig);
+    connection = await mysql.createConnection(dbConfig);
     console.log("Conexión a la base de datos MySQL establecida exitosamente!");
-    return connection; // Devuelve la conexión
+    return connection;
   } catch (error) {
     console.error("Error al conectar a la base de datos:", error.message);
-    throw error; // Propaga el error para que app.js pueda manejarlo
+    throw error;
   }
 }
 
-module.exports = { connectToDatabase };
+function getConnection() {
+  // Simplificamos la verificación: si 'connection' no ha sido asignada, lanzamos el error.
+  if (!connection) {
+    // Cambiado de '!connection || connection.connection.state !== "authenticated"'
+    throw new Error(
+      "La conexión a la base de datos no está establecida o está inactiva."
+    );
+  }
+  return connection;
+}
+
+module.exports = { connectToDatabase, getConnection };
